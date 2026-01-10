@@ -1,0 +1,124 @@
+name: Build Nun Tube (All Platforms)
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger only when you push a tag like v1.0.1
+  workflow_dispatch: # Allows manual trigger button
+
+jobs:
+  build:
+    name: Build for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            TARGET: linux
+            CMD_SEP: ":"
+          - os: windows-latest
+            TARGET: windows
+            CMD_SEP: ";"
+          - os: macos-latest
+            TARGET: macos
+            CMD_SEP: ":"
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      # --- Linux Specific Setup ---
+      - name: Install Linux Deps (Tkinter)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk
+
+      - name: Install Python Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pyinstaller customtkinter yt-dlp mutagen pygame pillow
+
+      # --- Build with PyInstaller ---
+      # Note: We use src/app.py because your 'll' showed app.py inside src/
+      - name: Build Executable
+        run: |
+          python -m PyInstaller --noconfirm --onefile --windowed \
+            --name "nuntube" \
+            --collect-all customtkinter \
+            --collect-submodules yt_dlp \
+            --hidden-import tkinter \
+            --hidden-import _tkinter \
+            --add-data "assets/download.png${{ matrix.CMD_SEP }}assets" \
+            --exclude-module matplotlib \
+            --exclude-module notebook \
+            --exclude-module test \
+            src/app.py
+
+      # --- Packaging (OS Specific) ---
+      
+      # WINDOWS: Create a Zip
+      - name: Package Windows
+        if: runner.os == 'Windows'
+        run: |
+          Compress-Archive -Path dist/nuntube.exe -DestinationPath dist/nuntube_windows.zip
+
+      # MACOS: Create a Zip of the .app bundle
+      - name: Package macOS
+        if: runner.os == 'macOS'
+        run: |
+          cd dist
+          zip -r nuntube_macos.zip nuntube.app
+
+      # LINUX: Build the .deb package
+      - name: Package Linux (Deb)
+        if: runner.os == 'Linux'
+        run: |
+          APP_NAME="nuntube"
+          VERSION="1.0.1"
+          DEB_ROOT="${APP_NAME}_deb"
+          mkdir -p $DEB_ROOT/usr/bin $DEB_ROOT/DEBIAN $DEB_ROOT/usr/share/applications $DEB_ROOT/usr/share/pixmaps
+          
+          # Use the Linux binary from dist
+          cp dist/nuntube $DEB_ROOT/usr/bin/
+          cp assets/download.png $DEB_ROOT/usr/share/pixmaps/$APP_NAME.png
+          
+          # Create Desktop Entry
+          cat <<EOF > $DEB_ROOT/usr/share/applications/$APP_NAME.desktop
+          [Desktop Entry]
+          Version=1.0
+          Type=Application
+          Name=Nun Tube
+          Exec=/usr/bin/$APP_NAME
+          Icon=$APP_NAME
+          Terminal=false
+          Categories=Utility;
+          EOF
+          
+          # Control File
+          cat <<EOF > $DEB_ROOT/DEBIAN/control
+          Package: $APP_NAME
+          Version: $VERSION
+          Architecture: amd64
+          Maintainer: Suon Phanun
+          Description: YouTube Channel MP3 Downloader
+          Depends: python3, python3-tk
+          EOF
+          
+          dpkg-deb --build --root-owner-group "$DEB_ROOT"
+          mv "${DEB_ROOT}.deb" dist/nuntube_linux.deb
+
+      # --- Upload Artifacts ---
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuntube-${{ matrix.TARGET }}
+          path: |
+            dist/*.zip
+            dist/*.deb
+            dist/nuntube  # Upload raw binary for Linux if zip fails

@@ -1,0 +1,10 @@
+Package: nuntube
+Version: 1.0.7
+Architecture: amd64
+Maintainer: Nun Tube
+Installed-Size: 40352
+Priority: optional
+Section: utils
+Description: YouTube Downloader
+ A simple GUI downloader for YouTube Channels and Playlists.
+ Depends: python3, python3-tk

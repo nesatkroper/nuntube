@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Nun Tube
+Comment=YouTube Channel and Playlist Downloader
+Exec=/usr/bin/nuntube
+Icon=nuntube
+Terminal=false
+StartupWMClass=nuntube
+Categories=Utility;Network;AudioVideo;
