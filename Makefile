@@ -19,6 +19,12 @@ clear:
 dev:
 	python src/app.py
 
+# dev:
+# 	QT_MEDIA_BACKEND=ffmpeg \
+# 	QT_LOGGING_RULES="*.debug=false" \
+# 	python src/app.py
+
+
 i: 
 	pip install -r requirements.txt
 
