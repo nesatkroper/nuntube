@@ -31,6 +31,7 @@ class DownloaderThread(QThread):
             "restrictfilenames": True,
             "noplaylist": True,
             "quiet": True,
+            "writethumbnail": True,  # Download thumbnail
             "progress_hooks": [progress_hook],
             "merge_output_format": "mp4",
         }
@@ -45,7 +46,8 @@ class DownloaderThread(QThread):
                             "key": "FFmpegExtractAudio",
                             "preferredcodec": "mp3",
                             "preferredquality": "192",
-                        }
+                        },
+                        {"key": "EmbedThumbnail"},  # Embed thumbnail into MP3
                     ],
                 }
             )

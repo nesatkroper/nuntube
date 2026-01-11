@@ -9,12 +9,15 @@ from PyQt6.QtWidgets import (
     QStackedWidget,
     QMessageBox,
     QSizePolicy,
+    QFileDialog,
 )
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtMultimediaWidgets import QVideoWidget
 from PyQt6.QtCore import Qt, QUrl, pyqtSignal
-from PyQt6.QtGui import QDesktopServices, QAction, QFont
-
+from PyQt6.QtGui import QDesktopServices, QAction, QFont, QPixmap, QImage
+import mutagen
+from mutagen.mp3 import MP3
+from mutagen.id3 import ID3, APIC, error as ID3Error
 
 class MiniPlayer(QWidget):
     # Signal to let the Main Window know a file was deleted so it can refresh the list
@@ -37,12 +40,25 @@ class MiniPlayer(QWidget):
         self.display_stack.addWidget(self.video_widget)
 
         # Layer 1: Audio Thumbnail / Placeholder
+        self.audio_container = QWidget()
+        audio_layout = QVBoxLayout(self.audio_container)
+        
         self.audio_placeholder = QLabel("🎵")
         self.audio_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.audio_placeholder.setStyleSheet(
             "font-size: 80px; background-color: #000; color: #555;"
         )
-        self.display_stack.addWidget(self.audio_placeholder)
+        self.audio_placeholder.setScaledContents(True)
+
+        self.btn_change_thumb = QPushButton("Change Thumbnail")
+        self.btn_change_thumb.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_change_thumb.clicked.connect(self.change_thumbnail)
+        self.btn_change_thumb.hide()
+
+        audio_layout.addWidget(self.audio_placeholder)
+        audio_layout.addWidget(self.btn_change_thumb)
+        
+        self.display_stack.addWidget(self.audio_container)
 
         self.layout.addWidget(self.display_stack, stretch=1)
 
@@ -120,19 +136,80 @@ class MiniPlayer(QWidget):
         if ext in [".mp3", ".m4a", ".wav", ".flac"]:
             # Show Audio Interface
             self.display_stack.setCurrentIndex(1)
-            # You could technically load a custom image here if one exists
-            self.audio_placeholder.setText("🎵\n" + os.path.basename(file_path))
-            self.audio_placeholder.setStyleSheet(
-                "font-size: 16px; font-weight: bold; background-color: #222; color: #888;"
-            )
+            self.btn_change_thumb.show()
+            self._load_thumbnail(file_path)
         else:
             # Show Video Interface
             self.display_stack.setCurrentIndex(0)
+            self.btn_change_thumb.hide()
 
         self.player.setSource(QUrl.fromLocalFile(file_path))
         self.player.play()
         self.btn_play.setText("⏸")
         self.btn_delete.setEnabled(True)
+
+    def _load_thumbnail(self, file_path):
+        # Default placeholder
+        self.audio_placeholder.setPixmap(QPixmap()) 
+        self.audio_placeholder.setText("🎵")
+        self.audio_placeholder.setStyleSheet("font-size: 80px; background-color: #000; color: #555;")
+        
+        try:
+            audio = MP3(file_path, ID3=ID3)
+            for tag in audio.tags.values():
+                if isinstance(tag, APIC):
+                    img_data = tag.data
+                    image = QImage.fromData(img_data)
+                    pixmap = QPixmap.fromImage(image)
+                    self.audio_placeholder.setPixmap(pixmap.scaled(
+                        self.audio_placeholder.size(), 
+                        Qt.AspectRatioMode.KeepAspectRatio, 
+                        Qt.TransformationMode.SmoothTransformation
+                    ))
+                    self.audio_placeholder.setText("") # Clear text
+                    self.audio_placeholder.setStyleSheet("background-color: #000;")
+                    break
+        except Exception as e:
+            print(f"Error loading thumbnail: {e}")
+
+    def change_thumbnail(self):
+        if not self.current_file:
+            return
+
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select Image", "", "Images (*.png *.jpg *.jpeg)"
+        )
+
+        if file_path:
+            try:
+                audio = MP3(self.current_file, ID3=ID3)
+                try:
+                    audio.add_tags()
+                except ID3Error:
+                    pass
+
+                url = file_path
+                with open(url, 'rb') as f:
+                    data = f.read()
+
+                # Add APIC tag
+                audio.tags.add(
+                    APIC(
+                        encoding=3, # 3 is for utf-8
+                        mime='image/jpeg', # image/jpeg or image/png
+                        type=3, # 3 is for the cover image
+                        desc=u'Cover',
+                        data=data
+                    )
+                )
+                audio.save()
+                
+                # Refresh display
+                self._load_thumbnail(self.current_file)
+                QMessageBox.information(self, "Success", "Thumbnail updated!")
+
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Could not update thumbnail:\n{e}")
 
     def toggle_play(self):
         if self.player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
