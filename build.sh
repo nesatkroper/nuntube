@@ -1,11 +1,12 @@
 #!/bin/bash
 
 # --- Configuration ---
-APP_NAME="nuntube"
+# --- Configuration ---
+APP_NAME="kouprey"
 APP_FILE="src/app.py"
 LOGO_FILE="assets/download.png" # Make sure this file exists!
 VERSION="1.0.7"
-MAINTAINER="Nun Tube"
+MAINTAINER="Kouprey Tube"
 OUTPUT_DIR="release"
 DEB_ROOT="${APP_NAME}_deb"
 DEB_PACKAGE_NAME="${APP_NAME}_${VERSION}_amd64.deb"
@@ -30,14 +31,11 @@ fi
 
 # 1. Dependency Check
 echo "Checking system dependencies..."
-if ! dpkg -s python3-tk >/dev/null 2>&1; then
-    echo "Installing python3-tk..."
-    sudo apt-get update && sudo apt-get install -y python3-tk
-fi
+# Removed python3-tk check as we are using PyQt6 and bundling it
 
 # 2. Python Environment
 echo "Updating Python libraries..."
-pip install --upgrade pyinstaller customtkinter yt-dlp mutagen pygame pillow
+pip install --upgrade pyinstaller yt-dlp mutagen pillow PyQt6 PyQt6-WebEngine
 
 # Cleanup previous builds
 rm -rf build dist "$DEB_ROOT" "$OUTPUT_DIR"
@@ -51,10 +49,8 @@ pyinstaller --noconfirm \
             --onefile \
             --windowed \
             --name "$APP_NAME" \
-            --collect-all customtkinter \
+            --collect-all PyQt6 \
             --collect-all yt_dlp \
-            --hidden-import tkinter \
-            --hidden-import _tkinter \
             --add-data "$LOGO_FILE:assets" \
             --icon "$LOGO_FILE" \
             "$APP_FILE"
@@ -79,12 +75,12 @@ chmod 755 "$DEB_ROOT/usr/bin/$APP_NAME"
 cp "$LOGO_FILE" "$DEB_ROOT/usr/share/pixmaps/$APP_NAME.png"
 
 # 5. Create Desktop Entry
-# Note: Icon=nuntube works because we placed nuntube.png in /usr/share/pixmaps
+# Note: Icon=kouprey works because we placed kouprey.png in /usr/share/pixmaps
 cat > "$DEB_ROOT/usr/share/applications/$APP_NAME.desktop" <<EOL
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=Nun Tube
+Name=Kouprey Tube
 Comment=YouTube Channel and Playlist Downloader
 Exec=/usr/bin/$APP_NAME
 Icon=$APP_NAME
@@ -104,9 +100,9 @@ Maintainer: $MAINTAINER
 Installed-Size: $INST_SIZE
 Priority: optional
 Section: utils
-Description: YouTube Downloader
+Description: Kouprey Tube Downloader
  A simple GUI downloader for YouTube Channels and Playlists.
- Depends: python3, python3-tk
+ Depends: python3
 EOL
 
 # 7. Post-Install Script

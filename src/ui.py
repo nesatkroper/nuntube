@@ -34,7 +34,7 @@ QSlider::handle:horizontal { background: #007acc; width: 10px; margin: -4px 0; b
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Kouoprey - YouTube Downloader")
+        self.setWindowTitle("Kouprey Tube")
         self.showMaximized()
         self.setStyleSheet(DARK_STYLESHEET)
 
@@ -48,15 +48,6 @@ class MainWindow(QMainWindow):
         self.setup_browser_tab()
         self.setup_downloads_tab()
 
-        # Footer
-        footer_frame = ctk.CTkFrame(self.root)
-        footer_frame.grid(row=1, column=0, columnspan=2, sticky="ew", padx=10, pady=10)
-        credit_button = ctk.CTkButton(
-            footer_frame,
-            text="Developed by Suon Phanun",
-            command=self.open_credit_links,
-        )
-        credit_button.pack(fill=tk.X)
 
     def setup_browser_tab(self):
         tab = QWidget()
@@ -69,35 +60,37 @@ class MainWindow(QMainWindow):
         self.browser.urlChanged.connect(self.on_url_change)
 
         self.overlay = QWidget()
-        self.overlay.setFixedHeight(60)  # Reduced height
+        self.overlay = QWidget()
+        self.overlay.setFixedHeight(40)  # Reduced height to 40px
         self.overlay.setStyleSheet(
             "background-color: #252525;"
         )
         self.overlay.hide()
 
         overlay_layout = QHBoxLayout(self.overlay)
+        overlay_layout.setContentsMargins(0, 0, 0, 0) # Zero margins for overlay layout
 
         self.status_label = QLabel("Ready")
         self.status_label.setFixedWidth(600)  # Set fixed width
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        self.status_label.setStyleSheet("color: #aaa; font-size: 13px; font-weight: bold;")
+        self.status_label.setStyleSheet("color: #aaa; font-size: 12px; font-weight: bold;") # Slightly smaller font
 
         self.btn_mp3 = QPushButton("Download Audio (MP3)")
         self.btn_mp3.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_mp3.clicked.connect(lambda: self.start_download("mp3"))
-        self.btn_mp3.setFixedWidth(180)  # Smaller width
-        self.btn_mp3.setFixedHeight(36)  # Smaller height
+        self.btn_mp3.setFixedWidth(160)  # Smaller width
+        self.btn_mp3.setFixedHeight(28)  # Reduced height to fit 40px container
         
         # Modern Pill Button Styling
         self.btn_mp3.setStyleSheet("""
             QPushButton {
                 background-color: #007acc;
                 border: none;
-                border-radius: 18px;
+                border-radius: 14px;
                 color: white;
-                font-size: 13px;
+                font-size: 11px;
                 font-weight: bold;
-                padding: 5px;
+                padding: 0px;
             }
             QPushButton:hover {
                 background-color: #0062a3;
@@ -112,15 +105,14 @@ class MainWindow(QMainWindow):
         # Container Layout
         container = QWidget()
         container_layout = QHBoxLayout(container)
-        container_layout.setContentsMargins(20, 5, 20, 5)  # Reduced vertical margins
+        container_layout.setContentsMargins(20, 0, 20, 0)  # Remove vertical margins
+        container_layout.setSpacing(10)
         
         # Add widgets side by side
         container_layout.addWidget(self.status_label, alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         container_layout.addStretch() # Spacer between them
         container_layout.addWidget(self.btn_mp3, alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
-        overlay_layout.addWidget(container)
-        
         layout.addWidget(self.browser)
         layout.addWidget(self.overlay)
         self.tabs.addTab(tab, "🌏 Browser")

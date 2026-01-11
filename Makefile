@@ -28,3 +28,7 @@ py:
 
 burn:
 	pip freeze > requirements.txt
+
+build:
+	chmod +x build.sh
+	./build.sh
