@@ -48,6 +48,16 @@ class MainWindow(QMainWindow):
         self.setup_browser_tab()
         self.setup_downloads_tab()
 
+        # Footer
+        footer_frame = ctk.CTkFrame(self.root)
+        footer_frame.grid(row=1, column=0, columnspan=2, sticky="ew", padx=10, pady=10)
+        credit_button = ctk.CTkButton(
+            footer_frame,
+            text="Developed by Suon Phanun",
+            command=self.open_credit_links,
+        )
+        credit_button.pack(fill=tk.X)
+
     def setup_browser_tab(self):
         tab = QWidget()
         layout = QVBoxLayout(tab)
