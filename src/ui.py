@@ -19,14 +19,14 @@ from player import MiniPlayer
 DARK_STYLESHEET = """
 QMainWindow, QWidget { background-color: #1e1e1e; color: #ffffff; }
 QTabWidget::pane { border: 1px solid #333; }
-QTabBar::tab { background: #2d2d2d; padding: 10px 20px; color: #aaa; }
+QTabBar::tab { background: #2d2d2d; padding: 6px 16px; color: #aaa; font-size: 12px; font-weight: bold; }
 QTabBar::tab:selected { background: #3d3d3d; color: #fff; border-bottom: 2px solid #007acc; }
-QPushButton { background-color: #333; border: none; padding: 8px; border-radius: 4px; color: white; }
+QPushButton { background-color: #333; border: none; padding: 6px; border-radius: 4px; color: white; }
 QPushButton:hover { background-color: #444; }
 QPushButton:disabled { background-color: #555; color: #888; }
-QListWidget { background-color: #252525; border: none; font-size: 14px; }
-QListWidget::item { padding: 10px; border-bottom: 1px solid #333; }
-QListWidget::item:selected { background-color: #3d3d3d; }
+QListWidget { background-color: #252525; border: none; font-size: 13px; outline: none; }
+QListWidget::item { padding: 8px; border-bottom: 1px solid #333; }
+QListWidget::item:selected { background-color: #007acc; color: white; border-bottom: 1px solid #007acc; }
 QSlider::handle:horizontal { background: #007acc; width: 10px; margin: -4px 0; border-radius: 5px; }
 """
 
@@ -34,7 +34,7 @@ QSlider::handle:horizontal { background: #007acc; width: 10px; margin: -4px 0; b
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Minimal YouTube Downloader")
+        self.setWindowTitle("Kouoprey - YouTube Downloader")
         self.showMaximized()
         self.setStyleSheet(DARK_STYLESHEET)
 

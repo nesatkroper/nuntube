@@ -10,11 +10,12 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QSizePolicy,
     QFileDialog,
+    QGraphicsDropShadowEffect,
 )
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtMultimediaWidgets import QVideoWidget
-from PyQt6.QtCore import Qt, QUrl, pyqtSignal
-from PyQt6.QtGui import QDesktopServices, QAction, QFont, QPixmap, QImage
+from PyQt6.QtCore import Qt, QUrl, pyqtSignal, QPropertyAnimation, QEasingCurve, QAbstractAnimation
+from PyQt6.QtGui import QDesktopServices, QAction, QFont, QPixmap, QImage, QColor
 import mutagen
 from mutagen.mp3 import MP3
 from mutagen.id3 import ID3, APIC, error as ID3Error
@@ -42,21 +43,40 @@ class MiniPlayer(QWidget):
         # Layer 1: Audio Thumbnail / Placeholder
         self.audio_container = QWidget()
         audio_layout = QVBoxLayout(self.audio_container)
+        audio_layout.setAlignment(Qt.AlignmentFlag.AlignCenter) # Center vertically
         
         self.audio_placeholder = QLabel("🎵")
         self.audio_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.audio_placeholder.setFixedSize(320, 320) # Constrain size
         self.audio_placeholder.setStyleSheet(
-            "font-size: 80px; background-color: #000; color: #555;"
+            "font-size: 80px; background-color: #000; color: #555; border-radius: 10px;"
         )
-        self.audio_placeholder.setScaledContents(True)
+        # self.audio_placeholder.setScaledContents(True) # Removed to prevent distortion
+
+        # Shadow Effect for Pulsing
+        self.shadow = QGraphicsDropShadowEffect(self)
+        self.shadow.setBlurRadius(0)
+        self.shadow.setColor(QColor("#007acc"))
+        self.shadow.setOffset(0, 0)
+        self.audio_placeholder.setGraphicsEffect(self.shadow)
+
+        self.animation = QPropertyAnimation(self.shadow, b"blurRadius")
+        self.animation.setDuration(1500)
+        self.animation.setStartValue(0)
+        self.animation.setEndValue(50)
+        self.animation.setLoopCount(-1) # Infinite
+        self.animation.setEasingCurve(QEasingCurve.Type.InOutSine)
 
         self.btn_change_thumb = QPushButton("Change Thumbnail")
         self.btn_change_thumb.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_change_thumb.clicked.connect(self.change_thumbnail)
+        self.btn_change_thumb.setFixedWidth(200) # Match a reasonable width
         self.btn_change_thumb.hide()
 
-        audio_layout.addWidget(self.audio_placeholder)
-        audio_layout.addWidget(self.btn_change_thumb)
+        audio_layout.addStretch()
+        audio_layout.addWidget(self.audio_placeholder, alignment=Qt.AlignmentFlag.AlignCenter)
+        audio_layout.addWidget(self.btn_change_thumb, alignment=Qt.AlignmentFlag.AlignCenter)
+        audio_layout.addStretch()
         
         self.display_stack.addWidget(self.audio_container)
 
@@ -77,35 +97,67 @@ class MiniPlayer(QWidget):
 
         # --- 3. Controls Area ---
         controls = QHBoxLayout()
-        controls.setSpacing(10)
+        controls.setSpacing(20) # More spacing for modern look
+        controls.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        # Define buttons
-        self.btn_open_dir = QPushButton("📂")
+        # Define buttons with modern icons
+        self.btn_open_dir = QPushButton("📁")
         self.btn_open_dir.setToolTip("Open Downloads Folder")
 
         self.btn_play = QPushButton("▶")
-        self.btn_stop = QPushButton("⏹")
+        self.btn_play.setToolTip("Play/Pause")
+        
+        self.btn_stop = QPushButton("◼")
+        self.btn_stop.setToolTip("Stop")
 
-        self.btn_delete = QPushButton("🗑️")
-        self.btn_delete.setToolTip("Delete current file")
-        self.btn_delete.setStyleSheet(
-            "QPushButton { color: #ff5555; } QPushButton:hover { background-color: #330000; }"
-        )
+        self.btn_delete = QPushButton("🗑")
+        self.btn_delete.setToolTip("Delete File")
 
-        # Style standard buttons
-        for btn in [self.btn_play, self.btn_stop, self.btn_open_dir, self.btn_delete]:
+        # Style standard buttons (Circular & Flat)
+        common_style = """
+            QPushButton {
+                background-color: transparent;
+                border: 2px solid #444;
+                border-radius: 20px;
+                color: #ddd;
+                font-size: 16px;
+            }
+            QPushButton:hover {
+                background-color: #444;
+                color: #fff;
+                border: 2px solid #666;
+            }
+        """
+        
+        # Special style for Play button (Larger, Accent Color)
+        play_style = """
+            QPushButton {
+                background-color: #007acc;
+                border: none;
+                border-radius: 25px;
+                color: white;
+                font-size: 20px;
+            }
+            QPushButton:hover {
+                background-color: #0062a3;
+                margin-top: 1px;
+            }
+        """
+
+        for btn in [self.btn_stop, self.btn_open_dir, self.btn_delete]:
             btn.setFixedSize(40, 40)
-            btn.setStyleSheet(
-                btn.styleSheet()
-                + "font-size: 18px; border-radius: 5px; background-color: #333;"
-            )
+            btn.setStyleSheet(common_style)
 
-        controls.addStretch()
+        self.btn_play.setFixedSize(50, 50) # Main action bigger
+        self.btn_play.setStyleSheet(play_style)
+        
+        # Trash specific hover
+        self.btn_delete.setStyleSheet(common_style + "QPushButton:hover { background-color: #550000; border-color: #ff5555; }")
+
         controls.addWidget(self.btn_open_dir)
         controls.addWidget(self.btn_stop)
         controls.addWidget(self.btn_play)
         controls.addWidget(self.btn_delete)
-        controls.addStretch()
 
         self.layout.addLayout(controls)
 
@@ -138,10 +190,15 @@ class MiniPlayer(QWidget):
             self.display_stack.setCurrentIndex(1)
             self.btn_change_thumb.show()
             self._load_thumbnail(file_path)
+            # Start Pulsing
+            self.animation.start()
         else:
             # Show Video Interface
             self.display_stack.setCurrentIndex(0)
             self.btn_change_thumb.hide()
+            self.animation.stop()
+            self.shadow.setBlurRadius(0)
+
 
         self.player.setSource(QUrl.fromLocalFile(file_path))
         self.player.play()
@@ -152,7 +209,7 @@ class MiniPlayer(QWidget):
         # Default placeholder
         self.audio_placeholder.setPixmap(QPixmap()) 
         self.audio_placeholder.setText("🎵")
-        self.audio_placeholder.setStyleSheet("font-size: 80px; background-color: #000; color: #555;")
+        self.audio_placeholder.setStyleSheet("font-size: 80px; background-color: #000; color: #555; border-radius: 10px;")
         
         try:
             audio = MP3(file_path, ID3=ID3)
@@ -161,13 +218,31 @@ class MiniPlayer(QWidget):
                     img_data = tag.data
                     image = QImage.fromData(img_data)
                     pixmap = QPixmap.fromImage(image)
-                    self.audio_placeholder.setPixmap(pixmap.scaled(
-                        self.audio_placeholder.size(), 
-                        Qt.AspectRatioMode.KeepAspectRatio, 
+                    
+                    # Calculate dimensions for "Cover" mode (Crop to fit)
+                    target_size = self.audio_placeholder.size()
+                    if target_size.width() <= 1 or target_size.height() <= 1:
+                         # Fallback if size is not yet calculated (e.g. startup)
+                         target_size = self.audio_container.size()
+
+                    scaled = pixmap.scaled(
+                        target_size,
+                        Qt.AspectRatioMode.KeepAspectRatioByExpanding,
                         Qt.TransformationMode.SmoothTransformation
-                    ))
+                    )
+
+                    # Center Crop
+                    x = (scaled.width() - target_size.width()) // 2
+                    y = (scaled.height() - target_size.height()) // 2
+                    # Ensure non-negative bounds
+                    x = max(0, x)
+                    y = max(0, y)
+                    
+                    cropped = scaled.copy(x, y, target_size.width(), target_size.height())
+
+                    self.audio_placeholder.setPixmap(cropped)
                     self.audio_placeholder.setText("") # Clear text
-                    self.audio_placeholder.setStyleSheet("background-color: #000;")
+                    self.audio_placeholder.setStyleSheet("background-color: #000; border-radius: 10px;")
                     break
         except Exception as e:
             print(f"Error loading thumbnail: {e}")
@@ -215,15 +290,21 @@ class MiniPlayer(QWidget):
         if self.player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
             self.player.pause()
             self.btn_play.setText("▶")
+            self.animation.stop()
+            self.shadow.setBlurRadius(0)
         else:
             self.player.play()
             self.btn_play.setText("⏸")
+            if self.animation.state() == QAbstractAnimation.State.Stopped:
+                self.animation.start()
 
     def stop_player(self):
         self.player.stop()
         self.btn_play.setText("▶")
         self.slider.setValue(0)
         self.lbl_current.setText("0:00")
+        self.animation.stop()
+        self.shadow.setBlurRadius(0)
 
     def delete_current_file(self):
         if not self.current_file:
