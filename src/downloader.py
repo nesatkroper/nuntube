@@ -26,35 +26,22 @@ class DownloaderThread(QThread):
             elif d["status"] == "finished":
                 self.progress.emit("Finalizing file...")
 
-        # Base options with anti-bot measures
+        # Simplified options - less aggressive anti-bot measures work better
         ydl_opts = {
             "outtmpl": os.path.join(self.save_path, "%(title)s [%(id)s].%(ext)s"),
             "restrictfilenames": True,
             "noplaylist": True,
             "quiet": True,
             "no_warnings": False,
-            "writethumbnail": True,  # Download thumbnail
+            "writethumbnail": True,
             "progress_hooks": [progress_hook],
             "merge_output_format": "mp4",
-            # Anti-bot measures
-            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "referer": "https://www.youtube.com/",
-            # Extractor args to help with YouTube issues
-            "extractor_args": {
-                "youtube": {
-                    "player_client": ["android", "web"],
-                    "player_skip": ["webpage", "configs"],
-                }
-            },
         }
 
-        # Try to use browser cookies if available
-        # Note: This requires the browser to be installed and have cookies
+        # Try to use browser cookies - simpler approach
         try:
-            # Try Chrome first, then Firefox as fallback
             ydl_opts["cookiesfrombrowser"] = ("chrome",)
         except:
-            # If cookie extraction fails, continue without cookies
             pass
 
         if self.mode == "mp3":
@@ -68,16 +55,16 @@ class DownloaderThread(QThread):
                             "preferredcodec": "mp3",
                             "preferredquality": "192",
                         },
-                        {"key": "EmbedThumbnail"},  # Embed thumbnail into MP3
+                        {"key": "EmbedThumbnail"},
                     ],
                 }
             )
         else:
-            # Video settings: Forces H.264 (avc1) for maximum compatibility with PyQt6
-            # This avoids the AV1 decoding errors you encountered.
+            # Video settings - simple and flexible
             ydl_opts.update(
                 {
-                    "format": "bestvideo[vcodec^=avc1][height<=1080]+bestaudio[ext=m4a]/best[vcodec^=avc1][height<=1080]/best",
+                    # Just get best available, let yt-dlp decide
+                    "format": "best[height<=1080]/best",
                 }
             )
 
@@ -91,11 +78,35 @@ class DownloaderThread(QThread):
                 if self.mode == "mp3":
                     filename = os.path.splitext(filename)[0] + ".mp3"
 
-            self.finished.emit(f"Saved: {os.path.basename(filename)}")
+                # Validate the downloaded file exists and isn't empty
+                if not os.path.exists(filename):
+                    self.error.emit("Download failed: File was not created")
+                    return
+                
+                file_size = os.path.getsize(filename)
+                if file_size == 0:
+                    self.error.emit("Download failed: File is empty (0 bytes). This video may be restricted.")
+                    # Clean up empty file
+                    try:
+                        os.remove(filename)
+                    except:
+                        pass
+                    return
+                
+                # Success - file exists and has content
+                size_mb = file_size / (1024 * 1024)
+                self.finished.emit(f"✅ Saved: {os.path.basename(filename)} ({size_mb:.1f} MB)")
 
         except Exception as e:
             # Send the error message back to the UI
-            self.error.emit(str(e))
+            error_msg = str(e)
+            # Make error messages more user-friendly
+            if "Requested format is not available" in error_msg:
+                error_msg = "Format not available. Try a different video or install Node.js (see YOUTUBE_RESTRICTIONS.md)"
+            elif "Only images are available" in error_msg:
+                error_msg = "This content (Short/Post) cannot be downloaded as video"
+            
+            self.error.emit(error_msg)
 
 
 
