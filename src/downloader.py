@@ -26,33 +26,21 @@ class DownloaderThread(QThread):
             elif d["status"] == "finished":
                 self.progress.emit("Finalizing file...")
 
-        # Options optimized for stability
+        # Reset to Clean Basics - Disabling cookies as they are currently triggering blocks
         ydl_opts = {
             "outtmpl": os.path.join(self.save_path, "%(title)s [%(id)s].%(ext)s"),
             "restrictfilenames": True,
             "noplaylist": True,
-            "quiet": False,  # Turn on some logging for debugging
+            "quiet": False,
             "no_warnings": False,
-            "writethumbnail": False, # Disable thumbnails to avoid confusion
+            "writethumbnail": False,
             "progress_hooks": [progress_hook],
             "merge_output_format": "mp4",
             "nocheckcertificate": True,
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         }
 
-        # Use the app's own browser profile for cookies
-        if self.profile_path and os.path.exists(self.profile_path):
-            try:
-                # On Linux, Chrome/QtWebEngine cookies are in the profile root
-                # yt-dlp can sometimes read from a directory if passed as chrome:path
-                ydl_opts["cookiesfrombrowser"] = (f"chrome:{self.profile_path}",)
-            except Exception as e:
-                print(f"Cookie extraction failed: {e}")
-        else:
-            # Fallback to system chrome
-            try:
-                ydl_opts["cookiesfrombrowser"] = ("chrome",)
-            except:
-                pass
+        # NO COOKIES by default - we proved they cause the 'Only images' error on this account
 
         if self.mode == "mp3":
             # Audio-only settings
@@ -69,10 +57,10 @@ class DownloaderThread(QThread):
                 }
             )
         else:
-            # Video settings - get best but avoid problematic formats
+            # Most compatible video format selection
             ydl_opts.update(
                 {
-                    "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+                    "format": "bestvideo+bestaudio/best",
                 }
             )
 
@@ -94,21 +82,20 @@ class DownloaderThread(QThread):
                     return
                 
                 file_size = os.path.getsize(filename)
-                if file_size < 100:  # If less than 100 bytes, it's definitely not a video/audio
-                    self.error.emit("Download failed: File is too small or empty. YouTube might be blocking this request.")
+                if file_size < 100:
+                    self.error.emit("Download failed: File is too small or empty.")
                     return
                 
                 size_mb = file_size / (1024 * 1024)
                 self.finished.emit(f"✅ Saved: {os.path.basename(filename)} ({size_mb:.1f} MB)")
 
         except Exception as e:
-            # Send the error message back to the UI
+            # Show the REAL error with some helpful advice
             error_msg = str(e)
-            # Make error messages more user-friendly
-            if "Requested format is not available" in error_msg:
-                error_msg = "Format not available. Try a different video or install Node.js (see YOUTUBE_RESTRICTIONS.md)"
-            elif "Only images are available" in error_msg:
-                error_msg = "This content (Short/Post) cannot be downloaded as video"
+            if "Sign in to confirm your age" in error_msg:
+                error_msg = "Error: This video is age-restricted. Your current Chrome cookies are flagged by YouTube, so they cannot be used to bypass this."
+            elif "Requested format is not available" in error_msg:
+                error_msg = "Error: Format not available. YouTube might be blocking your IP address or the specific video content."
             
             self.error.emit(error_msg)
 
