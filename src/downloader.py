@@ -26,23 +26,33 @@ class DownloaderThread(QThread):
             elif d["status"] == "finished":
                 self.progress.emit("Finalizing file...")
 
-        # Simplified options - less aggressive anti-bot measures work better
+        # Options optimized for stability
         ydl_opts = {
             "outtmpl": os.path.join(self.save_path, "%(title)s [%(id)s].%(ext)s"),
             "restrictfilenames": True,
             "noplaylist": True,
-            "quiet": True,
+            "quiet": False,  # Turn on some logging for debugging
             "no_warnings": False,
-            "writethumbnail": True,
+            "writethumbnail": False, # Disable thumbnails to avoid confusion
             "progress_hooks": [progress_hook],
             "merge_output_format": "mp4",
+            "nocheckcertificate": True,
         }
 
-        # Try to use browser cookies - simpler approach
-        try:
-            ydl_opts["cookiesfrombrowser"] = ("chrome",)
-        except:
-            pass
+        # Use the app's own browser profile for cookies
+        if self.profile_path and os.path.exists(self.profile_path):
+            try:
+                # On Linux, Chrome/QtWebEngine cookies are in the profile root
+                # yt-dlp can sometimes read from a directory if passed as chrome:path
+                ydl_opts["cookiesfrombrowser"] = (f"chrome:{self.profile_path}",)
+            except Exception as e:
+                print(f"Cookie extraction failed: {e}")
+        else:
+            # Fallback to system chrome
+            try:
+                ydl_opts["cookiesfrombrowser"] = ("chrome",)
+            except:
+                pass
 
         if self.mode == "mp3":
             # Audio-only settings
@@ -54,46 +64,40 @@ class DownloaderThread(QThread):
                             "key": "FFmpegExtractAudio",
                             "preferredcodec": "mp3",
                             "preferredquality": "192",
-                        },
-                        {"key": "EmbedThumbnail"},
+                        }
                     ],
                 }
             )
         else:
-            # Video settings - simple and flexible
+            # Video settings - get best but avoid problematic formats
             ydl_opts.update(
                 {
-                    # Just get best available, let yt-dlp decide
-                    "format": "best[height<=1080]/best",
+                    "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
                 }
             )
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                # extract_info with download=True handles the full process
                 info = ydl.extract_info(self.url, download=True)
                 filename = ydl.prepare_filename(info)
 
-                # If we converted to MP3, the extension in 'filename' might still be the original
                 if self.mode == "mp3":
+                    # After FFmpegExtractAudio, the extension is changed
                     filename = os.path.splitext(filename)[0] + ".mp3"
 
-                # Validate the downloaded file exists and isn't empty
+                # Wait a tiny bit for file system
+                import time
+                time.sleep(0.5)
+
                 if not os.path.exists(filename):
-                    self.error.emit("Download failed: File was not created")
+                    self.error.emit(f"Download Error: File not found at {os.path.basename(filename)}")
                     return
                 
                 file_size = os.path.getsize(filename)
-                if file_size == 0:
-                    self.error.emit("Download failed: File is empty (0 bytes). This video may be restricted.")
-                    # Clean up empty file
-                    try:
-                        os.remove(filename)
-                    except:
-                        pass
+                if file_size < 100:  # If less than 100 bytes, it's definitely not a video/audio
+                    self.error.emit("Download failed: File is too small or empty. YouTube might be blocking this request.")
                     return
                 
-                # Success - file exists and has content
                 size_mb = file_size / (1024 * 1024)
                 self.finished.emit(f"✅ Saved: {os.path.basename(filename)} ({size_mb:.1f} MB)")
 
