@@ -178,9 +178,8 @@ class MainWindow(QMainWindow):
 
         url = self.browser.url().toString()
         
-        # Pass cookies path to help bypass YouTube restrictions
-        cookies_file = os.path.join(self.profile_path, "Cookies")
-        self.thread = DownloaderThread(url, mode, cookies_file if os.path.exists(cookies_file) else None)
+        # Pass profile path (yt-dlp will handle cookie extraction internally)
+        self.thread = DownloaderThread(url, mode, self.profile_path)
 
         self.thread.progress.connect(self.status_label.setText)
         self.thread.finished.connect(self.on_download_finished)

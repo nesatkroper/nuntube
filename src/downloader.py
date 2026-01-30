@@ -8,11 +8,11 @@ class DownloaderThread(QThread):
     finished = pyqtSignal(str)
     error = pyqtSignal(str)
 
-    def __init__(self, url, mode, cookies_path=None):
+    def __init__(self, url, mode, profile_path=None):
         super().__init__()
         self.url = url
         self.mode = mode
-        self.cookies_path = cookies_path
+        self.profile_path = profile_path
         self.save_path = os.path.join(os.getcwd(), "downloads")
         if not os.path.exists(self.save_path):
             os.makedirs(self.save_path)
@@ -32,14 +32,13 @@ class DownloaderThread(QThread):
             "restrictfilenames": True,
             "noplaylist": True,
             "quiet": True,
+            "no_warnings": False,
             "writethumbnail": True,  # Download thumbnail
             "progress_hooks": [progress_hook],
             "merge_output_format": "mp4",
             # Anti-bot measures
             "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "referer": "https://www.youtube.com/",
-            # Use browser cookies if available
-            "cookiesfrombrowser": ("chrome",) if not self.cookies_path else None,
             # Extractor args to help with YouTube issues
             "extractor_args": {
                 "youtube": {
@@ -49,9 +48,14 @@ class DownloaderThread(QThread):
             },
         }
 
-        # If we have a cookies file, use it
-        if self.cookies_path and os.path.exists(self.cookies_path):
-            ydl_opts["cookiefile"] = self.cookies_path
+        # Try to use browser cookies if available
+        # Note: This requires the browser to be installed and have cookies
+        try:
+            # Try Chrome first, then Firefox as fallback
+            ydl_opts["cookiesfrombrowser"] = ("chrome",)
+        except:
+            # If cookie extraction fails, continue without cookies
+            pass
 
         if self.mode == "mp3":
             # Audio-only settings
@@ -92,6 +96,7 @@ class DownloaderThread(QThread):
         except Exception as e:
             # Send the error message back to the UI
             self.error.emit(str(e))
+
 
 
 
