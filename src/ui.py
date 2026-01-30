@@ -10,6 +10,9 @@ from PyQt6.QtWidgets import (
     QLabel,
     QListWidgetItem,
     QMessageBox,
+    QHBoxLayout,
+    QSpacerItem,
+    QSizePolicy,
 )
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEngineProfile
@@ -50,10 +53,53 @@ class MainWindow(QMainWindow):
 
         self.tabs = QTabWidget()
         self.setCentralWidget(self.tabs)
+        
+        # Setup Header (Corner Widget)
+        self.setup_header()
 
         self.setup_browser_tab()
         self.setup_downloads_tab()
 
+
+    def setup_header(self):
+        self.header_widget = QWidget()
+        header_layout = QHBoxLayout(self.header_widget)
+        header_layout.setContentsMargins(0, 0, 10, 0) 
+        header_layout.setSpacing(10)
+
+        self.status_label = QLabel("")
+        self.status_label.setStyleSheet("color: #007acc; font-size: 11px; font-weight: bold;")
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+        self.btn_mp4 = QPushButton("🎬 Download")
+        self.btn_mp4.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_mp4.clicked.connect(lambda: self.start_download("mp4"))
+        self.btn_mp4.setFixedWidth(110)
+        self.btn_mp4.setFixedHeight(26) # Height matches tab bar area better
+        self.btn_mp4.setEnabled(False)
+        
+        self.btn_mp4.setStyleSheet("""
+            QPushButton {
+                background-color: #007acc;
+                border: none;
+                border-radius: 13px;
+                color: white;
+                font-size: 11px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #008ae6;
+            }
+            QPushButton:disabled {
+                background-color: #333;
+                color: #555;
+            }
+        """)
+
+        header_layout.addWidget(self.status_label)
+        header_layout.addWidget(self.btn_mp4)
+        
+        self.tabs.setCornerWidget(self.header_widget, Qt.Corner.TopRightCorner)
 
     def setup_browser_tab(self):
         tab = QWidget()
@@ -75,75 +121,8 @@ class MainWindow(QMainWindow):
         self.browser.setPage(page)
         self.browser.setUrl(QUrl("https://www.youtube.com"))
         self.browser.urlChanged.connect(self.on_url_change)
-
-        self.overlay = QWidget()
-        self.overlay.setFixedHeight(60)  # Reduced height
-        self.overlay.setStyleSheet(
-            "background-color: #252525;"
-        )
-        self.overlay.hide()
-
-        overlay_layout = QHBoxLayout(self.overlay)
-
-        self.status_label = QLabel("Ready")
-        self.status_label.setFixedWidth(400)  # Adjusted for two buttons
-        self.status_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        self.status_label.setStyleSheet("color: #aaa; font-size: 13px; font-weight: bold;")
-
-        # MP3 Download Button
-        self.btn_mp3 = QPushButton("🎵 Download MP3")
-        self.btn_mp3.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_mp3.clicked.connect(lambda: self.start_download("mp3"))
-        self.btn_mp3.setFixedWidth(160)
-        self.btn_mp3.setFixedHeight(36)
-        
-        # MP4 Download Button
-        self.btn_mp4 = QPushButton("🎬 Download MP4")
-        self.btn_mp4.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_mp4.clicked.connect(lambda: self.start_download("mp4"))
-        self.btn_mp4.setFixedWidth(160)
-        self.btn_mp4.setFixedHeight(36)
-        
-        # Modern Pill Button Styling
-        button_style = """
-            QPushButton {
-                background-color: #007acc;
-                border: none;
-                border-radius: 18px;
-                color: white;
-                font-size: 13px;
-                font-weight: bold;
-                padding: 5px;
-            }
-            QPushButton:hover {
-                background-color: #0062a3;
-                margin-top: 1px;
-            }
-            QPushButton:disabled {
-                background-color: #333;
-                color: #777;
-            }
-        """
-        
-        self.btn_mp3.setStyleSheet(button_style)
-        self.btn_mp4.setStyleSheet(button_style)
-
-        # Container Layout
-        container = QWidget()
-        container_layout = QHBoxLayout(container)
-        container_layout.setContentsMargins(20, 5, 20, 5)  # Reduced vertical margins
-        
-        # Add widgets side by side
-        container_layout.addWidget(self.status_label, alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        container_layout.addStretch() # Spacer between them
-        container_layout.addWidget(self.btn_mp3, alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        container_layout.addSpacing(10)  # Space between buttons
-        container_layout.addWidget(self.btn_mp4, alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-
-        overlay_layout.addWidget(container)
         
         layout.addWidget(self.browser)
-        layout.addWidget(self.overlay)
         self.tabs.addTab(tab, "🌏 Browser")
 
 
@@ -157,22 +136,21 @@ class MainWindow(QMainWindow):
         self.player_area = MiniPlayer()
         self.player_area.file_deleted.connect(self.refresh_file_list)
 
-        # 60% Left (List), 40% Right (Player)
-        layout.addWidget(self.file_list, 6)
-        layout.addWidget(self.player_area, 4)
+        # 30% Left (List), 70% Right (Player) - Making player bigger
+        layout.addWidget(self.file_list, 3)
+        layout.addWidget(self.player_area, 7)
 
         self.tabs.addTab(tab, "📂 Downloads")
         self.tabs.currentChanged.connect(self.refresh_file_list)
 
     def on_url_change(self, url):
         url_str = url.toString()
-        if "watch?v=" in url_str or "shorts/" in url_str:
-            self.overlay.show()
-        else:
-            self.overlay.hide()
+        is_video = "watch?v=" in url_str or "shorts/" in url_str
+        self.btn_mp4.setEnabled(is_video)
+        if not is_video:
+            self.status_label.setText("")
 
     def start_download(self, mode):
-        self.btn_mp3.setEnabled(False)
         self.btn_mp4.setEnabled(False)
         self.status_label.setText("Initializing...")
 
@@ -189,14 +167,12 @@ class MainWindow(QMainWindow):
 
     def on_download_finished(self, msg):
         self.status_label.setText("✅ Done!")
-        self.btn_mp3.setEnabled(True)
         self.btn_mp4.setEnabled(True)
         self.refresh_file_list()
 
     def on_download_error(self, err_msg):
         self.status_label.setText("❌ Error")
         QMessageBox.critical(self, "Download Error", err_msg)
-        self.btn_mp3.setEnabled(True)
         self.btn_mp4.setEnabled(True)
 
     def refresh_file_list(self):
